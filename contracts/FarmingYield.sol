@@ -39,6 +39,7 @@ contract FarmingYield is Ownable {
         FundInfo[] fundInfo;
     }
 
+    address[] public stakers;
     mapping(address => UserInfo) public userInfo;
     mapping(address => uint256) public lockIndex;
     event Deposit(address indexed user, uint256 amount);
@@ -103,6 +104,7 @@ contract FarmingYield is Ownable {
         user.amount = user.amount + netAmount;
         user.reward1Debt = (user.amount * accReward1PerShare) / 1e12;
         user.fundInfo.push(FundInfo(netAmount, block.timestamp));
+        if(user.fundInfo.length > 0 && user.amount > 0) stakers.push(msg.sender);
         emit Deposit(msg.sender, netAmount);
     }
 
