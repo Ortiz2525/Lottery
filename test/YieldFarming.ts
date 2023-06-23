@@ -22,13 +22,13 @@ describe("FarmingYield", () => {
     const FarmingYieldFactory = await ethers.getContractFactory("FarmingYield");
     const lockPeriod = 30 * 24 * 60 * 60;
     FarmingYield = await FarmingYieldFactory.deploy(
-      stakingToken.address,
-      rewardToken1.address,
       1, // depositFeePercent
-      await treasury.getAddress(), // treasury
       1000, // reward1PerBlock
       lockPeriod
     );
+    await FarmingYield.setTreasury(treasury.getAddress());
+    await FarmingYield.setStakingToken(stakingToken.address);
+    await FarmingYield.setRewardToken(rewardToken1.address);
   });
 
   describe("Deployment", () => {

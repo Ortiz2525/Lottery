@@ -34,14 +34,13 @@ const chainId = network.config.chainId || 31337;
           
               const FarmingYieldFactory = await ethers.getContractFactory("FarmingYield",deployer);
               const lockPeriod = 30 * 24 * 60 * 60;
-              FarmingYield = await FarmingYieldFactory.deploy(
-                stakingToken.address,
-                rewardToken1.address,
-                10, 
-                lottery.address,
-                1000,
-                lockPeriod
-              );
+              FarmingYield = await FarmingYieldFactory.deploy(10, 1000,lockPeriod);
+              await FarmingYield.setStakingToken(stakingToken.address);
+              await FarmingYield.setRewardToken(rewardToken1.address);
+              await FarmingYield.setTreasury(lottery.address);
+              await lottery.setFarmingYield(FarmingYield.address);
+              await lottery.setRewardToken(rewardToken1.address);
+              await lottery.setStakingToken(stakingToken.address);
           });
 
           describe("constructor", () => {
@@ -54,43 +53,27 @@ const chainId = network.config.chainId || 31337;
           });
 
           describe("enterLottery", () => {
-              it("reverts when you don't pay enough", async () => {
-                  await expect(
-                      lottery.enterLottery({ value: ethers.utils.parseEther("0") })
-                  ).to.be.revertedWithCustomError(lottery, "Lottery__NotEnoughETHEntered");
-              });
 
               it("records players when they enter", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
+                await stakingToken.mint(await playerSigner.getAddress(), 1000);
+                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
+                await FarmingYield.connect(playerSigner).deposit(1000);
+                lottery.getStakers();
                   const playerFromContract = await lottery.getPlayer(0);
                   expect(playerFromContract).to.eq(player);
               });
 
-              it("emits a LotteryEntered event", async () => {
-                  await expect(
-                      lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee })
-                  )
-                      .to.emit(lottery, "LotteryEntered")
-                      .withArgs(player);
-              });
-
               it("reverts when the state is not opened", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
+                await stakingToken.mint(await playerSigner.getAddress(), 1000);
+                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
+                await FarmingYield.connect(playerSigner).deposit(1000);
                   // We need to trigger performUpkeep in place of chainlink
                   // to change the state from OPEN to CALCULATING
-
-                  // increase time of the blockchain to be able to call and pass checkUpkeep
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
-                  // mine a block
                   await network.provider.send("evm_mine", []);
 
                   // We pretend to be a chainlink keeper
                   await lottery.performUpkeep([]);
-
-                  // Now if we try to enter the lottery, the state should not be opened and we expect a revert
-                  await expect(
-                      lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee })
-                  ).to.be.revertedWithCustomError(lottery, "Lottery_NotOpen");
               });
           });
 
@@ -104,26 +87,43 @@ const chainId = network.config.chainId || 31337;
               });
 
               it("returns false if lottery isn't open", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
+                await stakingToken.mint(await playerSigner.getAddress(), 1000);
+                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
+                await FarmingYield.connect(playerSigner).deposit(1000);
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
                   await lottery.performUpkeep([]); // changes the state to calculating
                   const lotteryState = await lottery.getLotteryState();
+                  
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(lotteryState).to.eq(1); // CALCULATING
                   expect(upkeepNeeded).to.be.false;
               });
 
               it("returns false if enough time hasn't passed", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
-                  await network.provider.send("evm_increaseTime", [interval.sub(10).toNumber()]);
+                  const accounts = await ethers.getSigners();
+                  for(let i= 0; i<10;i++)
+                  {
+                    await stakingToken.mint(await accounts[i].getAddress(), 1000);
+                    await stakingToken.connect(accounts[i]).approve(FarmingYield.address, 1000);
+                    await FarmingYield.connect(accounts[i]).deposit(1000);
+                  }
+                  await network.provider.send("evm_increaseTime", [interval.sub(100).toNumber()]);
                   await network.provider.send("evm_mine", []);
+                  
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(upkeepNeeded).to.be.false;
               });
 
               it("returns true if enough time has passed, has players, eth, and is open", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
+                 
+                  const accounts = await ethers.getSigners();
+                  for(let i= 0; i<10;i++)
+                  {
+                    await stakingToken.mint(await accounts[i].getAddress(), 1000);
+                    await stakingToken.connect(accounts[i]).approve(FarmingYield.address, 1000);
+                    await FarmingYield.connect(accounts[i]).deposit(1000);
+                  }
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
@@ -133,17 +133,21 @@ const chainId = network.config.chainId || 31337;
 
           describe("performUpkeep", () => {
               it("reverts if checkupkeep is false", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
-                  await network.provider.send("evm_increaseTime", [interval.sub(10).toNumber()]);
+                await stakingToken.mint(await playerSigner.getAddress(), 1000);
+                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
+                await FarmingYield.connect(playerSigner).deposit(1000);
+                  await network.provider.send("evm_increaseTime", [interval.sub(100).toNumber()]);
                   await network.provider.send("evm_mine", []);
 
                   await expect(lottery.performUpkeep([]))
                       .to.be.revertedWithCustomError(lottery, "Lottery_UpkeepNotNeeded")
-                      .withArgs(lotteryEntranceFee, 1, 0);
+                      .withArgs(0, 1, 0);
               });
 
               it("changes the state to CALCULATING, and call the vrf coordinator to get a request id", async () => {
-                  await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
+                await stakingToken.mint(await playerSigner.getAddress(), 1000);
+                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
+                await FarmingYield.connect(playerSigner).deposit(1000);
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
 
@@ -161,7 +165,6 @@ const chainId = network.config.chainId || 31337;
 
           describe("fulfillRandomWords", function () {
               beforeEach(async () => {
-                  await lottery.enterLottery({ value: lotteryEntranceFee });
                   await network.provider.send("evm_increaseTime", [interval.toNumber() + 1]);
                   await network.provider.request({ method: "evm_mine", params: [] });
               });
@@ -174,21 +177,15 @@ const chainId = network.config.chainId || 31337;
                   ).to.be.revertedWith("nonexistent request");
               });
 
-              // This test is too big...
-              // This test simulates users entering the lottery and wraps the entire functionality of the lottery
-              // inside a promise that will resolve if everything is successful.
-              // An event listener for the WinnerPicked is set up
-              // Mocks of chainlink keepers and vrf coordinator are used to kickoff this winnerPicked event
-              // All the assertions are done once the WinnerPicked event is fired
               it("picks a winner, resets, and sends money", async () => {
-                  const additionalEntrances = 3; // to test
-                  const startingIndex = 2;
                   let lotteryConnect: Lottery;
                   const accounts = await ethers.getSigners();
-                  for (let i = startingIndex; i < startingIndex + additionalEntrances; i++) {
-                      // i = 2; i < 5; i=i+1
+                  for (let i = 0; i < 11; i++) {
                       lotteryConnect = lottery.connect(accounts[i]); // Returns a new instance of the Lottery contract connected to player
-                      await lotteryConnect.enterLottery({ value: lotteryEntranceFee });
+                    //   await lotteryConnect.enterLottery({ value: lotteryEntranceFee });
+                    await stakingToken.mint(await accounts[i].getAddress(), 1000+i*100);
+                    await stakingToken.connect(accounts[i]).approve(FarmingYield.address, 1000+i*100);
+                    await FarmingYield.connect(accounts[i]).deposit(1000+i*100);
                       
                   }
                  
@@ -207,20 +204,12 @@ const chainId = network.config.chainId || 31337;
                               // Now lets get the ending values...
                               const recentWinner = await lotteryConnect.getRecentWinner();
                               const lotteryState = await lotteryConnect.getLotteryState();
-                              const winnerBalance = await accounts[2].getBalance();
+                              const winnerBalance = await stakingToken.balanceOf(accounts[6].address);
                               const endingTimeStamp = await lotteryConnect.getLastTimestamp();
                               await expect(lottery.getPlayer(0)).to.be.reverted;
-                              // Comparisons to check if our ending values are correct:
-                              expect(recentWinner).to.eq(accounts[2].address);
+                              expect(recentWinner).to.eq(accounts[6].address);
                               expect(lotteryState).to.eq(0);
-                              expect(winnerBalance).to.eq(
-                                  startingBalance // startingBalance + ( (lotteryEntranceFee * additionalEntrances) + lotteryEntranceFee )
-                                      .add(
-                                          lotteryEntranceFee
-                                              .mul(additionalEntrances)
-                                              .add(lotteryEntranceFee)
-                                      )
-                              );
+                              expect(winnerBalance).to.eq(startingBalance.add(reward));
                               expect(endingTimeStamp).to.be.greaterThan(startingTimeStamp);
                               resolve(); // if try passes, resolves the promise
                           } catch (e) {
@@ -232,7 +221,10 @@ const chainId = network.config.chainId || 31337;
                       const tx = await lottery.performUpkeep([]);
                       const txReceipt = await tx.wait(1);
                       
-                      const startingBalance = await accounts[2].getBalance();
+                      const startingBalance =await stakingToken.balanceOf(accounts[6].address);
+                      const reward = await stakingToken.balanceOf(lottery.address);
+                    //   console.log(reward);
+                    //   console.log(startingBalance);
                       const events = txReceipt.events || Array();
                       await vrfCoordinatorV2Mock.fulfillRandomWords(
                           events[1].args.requestId,
@@ -241,55 +233,5 @@ const chainId = network.config.chainId || 31337;
                   });
               });
           });
-          
-        //   describe("FarmingYield", () => {
-        //     let FarmingYield: Contract;
-        //     let stakingToken: Contract;
-        //     let rewardToken1: Contract;
-        //     let owner: Signer;
-        //     let addr1: Signer;
-        //     let addr2: Signer;
-        //     let treasury: Signer;
-          
-        //     beforeEach(async () => {
-        //       [owner, addr1, addr2, treasury] = await ethers.getSigners();
-          
-        //       const ERC20MockFactory = await ethers.getContractFactory("ERC20Mock");
-        //       stakingToken = await ERC20MockFactory.deploy("Staking Token", "STK");
-        //       rewardToken1 = await ERC20MockFactory.deploy("Reward Token 1", "RT1");
-          
-        //       const FarmingYieldFactory = await ethers.getContractFactory("FarmingYield");
-        //       const lockPeriod = 30 * 24 * 60 * 60;
-        //       FarmingYield = await FarmingYieldFactory.deploy(
-        //         stakingToken.address,
-        //         rewardToken1.address,
-        //         10, // depositFeePercent
-        //         await treasury.getAddress(), // treasury
-        //         1000, // reward1PerBlock
-        //         lockPeriod
-        //       );
-        //     });
-        //     describe("Deposit", () => {
-        //       it("Should deposit staking tokens", async () => {
-        //         await stakingToken.connect(owner).mint(await addr1.getAddress(), 1000);
-        //         await stakingToken.connect(addr1).approve(FarmingYield.address, 1000);
-        //         await FarmingYield.connect(addr1).deposit(1000);
-        //         const userInfo = await FarmingYield.userInfo(await addr1.getAddress());
-        //         expect(userInfo.amount).to.equal(990); // 1000 - 1% deposit fee
-        //       });
-        //       it("get Reward tokens from deposit", async () => {
-        //         await stakingToken.connect(owner).mint(await addr1.getAddress(), 2020);
-        //         await stakingToken.connect(addr1).approve(FarmingYield.address, 2020);
-        //         await FarmingYield.connect(addr1).deposit(1010);
-        //         await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
-        //         await ethers.provider.send("evm_mine",[]);
-        //         await FarmingYield.connect(addr1).deposit(1010);
-        //         const userInfo = await FarmingYield.userInfo(await addr1.getAddress());
-        //         await expect (await rewardToken1.balanceOf(await addr1.getAddress())).to.be.equal(ethers.BigNumber.from("1800")); // ({blockpass = 2}*1000)*90/100
-        //         await expect (await rewardToken1.balanceOf(await treasury.getAddress())).to.be.equal(ethers.BigNumber.from("200"));
-        //         expect(userInfo.amount).to.equal(2000);
-        //       });
-        //     });
-        //   });
       });
       

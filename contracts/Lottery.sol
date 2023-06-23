@@ -6,26 +6,31 @@ import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 import "hardhat/console.sol";
 import "./FarmingYield.sol";
+import "./ERC20Mock.sol";
 
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransferFailed();
 error Lottery_NotOpen();
 error Lottery_UpkeepNotNeeded(uint256 balance, uint256 numberOfPlayers, uint256 lotteryState);
 
-contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
+contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
     enum LotteryState {
         OPEN,
         CALCULATING
     }
-    
+
     struct StakerInfo {
         uint256 amount;
         address staker;
     }
 
     uint256 private immutable _entranceFee;
-    address payable[] private _players;
+    uint256 private topStakingAmount;
+    address[] private _players;
+    uint256[] private _amounts;
     FarmingYield farmingYield;
+    IERC20 public stakingToken;
+    ERC20Mock public rewardToken;
     /**
      * Chainlink state variables
      */
@@ -46,7 +51,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     address private _recentWinner;
     LotteryState private _lotteryState;
     uint256 private _lastTimestamp;
-    uint256 private immutable _interval;
+    uint256 private _interval;
 
     event LotteryEntered(address indexed player);
     event RequestedLotteryWinner(uint256 indexed requestId);
@@ -69,49 +74,47 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         _interval = interval;
     }
 
-    function enterLottery() external payable {
-        if (msg.value < _entranceFee) {
-            revert Lottery__NotEnoughETHEntered();
-        }
-        if (_lotteryState != LotteryState.OPEN) {
-            revert Lottery_NotOpen();
-        }
-        _players.push(payable(msg.sender));
-
-        emit LotteryEntered(msg.sender);
-    }
-
-    /**
-     * @dev This is the function chainlink automation nodes call
-     * they look for the upkeepNeeded to return true.
-     * The following should be true in order to return true:
-     * 1. Our time interval should have passed.
-     * 2. The lottery should have at least one player and have some eth.
-     * 3. Our subscription is funded with LINK
-     * 4. The lottery should be in an open state.
-     */
-     
     function checkUpkeep(
         bytes memory /* checkData */
     ) public override returns (bool upkeepNeeded, bytes memory /* performData */) {
         bool isOpen = _lotteryState == LotteryState.OPEN;
         bool timePassed = (block.timestamp - _lastTimestamp) > _interval;
+        address zeroAddress = 0x0000000000000000000000000000000000000000;
+        if (address(farmingYield) != zeroAddress) {
+            address[] memory stakers = farmingYield.getStakers();
+            uint256 k = stakers.length < 10 ? stakers.length : 10;
+            uint256 n = stakers.length;
+            for (uint256 i = 0; i < k; i++) {
+                uint256 maxIndex = i;
+                for (uint256 j = i + 1; j < n; j++) {
+                    if (
+                        farmingYield.getAmount(stakers[j]) >
+                        farmingYield.getAmount(stakers[maxIndex])
+                    ) {
+                        maxIndex = j;
+                    }
+                }
+                address temp = stakers[i];
+                stakers[i] = stakers[maxIndex];
+                stakers[maxIndex] = temp;
+            }
+            _players = new address[](0);
+            _amounts = new uint256[](0);
+            topStakingAmount = 0;
+            for (uint256 i = 0; i < k; i++) {
+                _players.push(stakers[i]);
+                _amounts.push(farmingYield.getAmount(stakers[i]));
+                topStakingAmount += farmingYield.getAmount(stakers[i]);
+            }
+        }
         bool hasPlayers = _players.length > 0;
-        bool hasBalance = address(this).balance > 0;
+        bool hasBalance = stakingToken.balanceOf(address(this)) > 0;
         upkeepNeeded = isOpen && hasPlayers && timePassed && hasBalance;
-        console.log(isOpen, block.timestamp - _lastTimestamp, hasPlayers, hasBalance);
-        //console.log(address(farmingYield));
-        //require(upkeepNeeded == true,"Not upkeepNeeded");
-        // address zeroAddress=0x0000000000000000000000000000000000000000;
-        // if(upkeepNeeded == true && address(farmingYield)!=zeroAddress)
-        // {
-        //     getStakers();
-        // }
     }
 
     function performUpkeep(bytes calldata /* performData */) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
-        //console.log(upkeepNeeded);
+
         if (!upkeepNeeded) {
             revert Lottery_UpkeepNotNeeded(
                 address(this).balance,
@@ -138,22 +141,40 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         uint256 /* requestId */,
         uint256[] memory randomWords
     ) internal override {
-        uint256 indexOfWinner = randomWords[0] % _players.length;
+        uint256 indexOfWinner;
+        uint256 rNumber = randomWords[0] % topStakingAmount;
+        for (uint256 i = 0; i < _players.length; i++) {
+            if (rNumber < _amounts[i]) {
+                indexOfWinner = i;
+                break;
+            } else {
+                rNumber -= _amounts[i];
+            }
+        }
+        console.log(indexOfWinner);
         _recentWinner = _players[indexOfWinner];
 
         // Reset state and players array
         _lotteryState = LotteryState.OPEN;
-        _players = new address payable[](0);
+        _players = new address[](0);
+        _amounts = new uint256[](0);
+        topStakingAmount = 0;
         _lastTimestamp = block.timestamp;
 
-        (bool success, ) = _recentWinner.call{value: address(this).balance}("");
-        if (!success) {
-            revert Lottery__TransferFailed();
-        }
+        stakingToken.transfer(_recentWinner, stakingToken.balanceOf(address(this)));
+        rewardToken.transfer(_recentWinner, rewardToken.balanceOf(address(this)));
         emit WinnerPicked(_recentWinner);
     }
+
     function getStakers() public {
-        FarmingYield.StakerInfo[] memory stakers = farmingYield.getStakers();
+        address[] memory stakers = farmingYield.getStakers();
+        _players = new address[](0);
+        topStakingAmount = 0;
+        for (uint i = 0; i < stakers.length; i++) {
+            _players.push(stakers[i]);
+            _amounts.push(farmingYield.getAmount(stakers[i]));
+            topStakingAmount += farmingYield.getAmount(stakers[i]);
+        }
     }
 
     function getEntranceFee() external view returns (uint256) {
@@ -188,10 +209,27 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         return _interval;
     }
 
+    function getTopStakersTotalAmount() external view returns (uint256) {
+        return topStakingAmount;
+    }
+
     function getRecentWinner() public view returns (address) {
         return _recentWinner;
     }
-    function setFarmingYield(address _yield) public {
-        farmingYield=FarmingYield(_yield);
+
+    function setFarmingYield(address _yield) public onlyOwner {
+        farmingYield = FarmingYield(_yield);
+    }
+
+    function setRewardToken(address _yield) public onlyOwner {
+        rewardToken = ERC20Mock(_yield);
+    }
+
+    function setStakingToken(address _yield) public onlyOwner {
+        stakingToken = ERC20Mock(_yield);
+    }
+
+    function setInterval(uint256 time) public onlyOwner {
+        _interval = time;
     }
 }

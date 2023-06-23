@@ -17,7 +17,7 @@ const networkConfig: ExtraConfig = {
         verifyContract: false,
         blockConfirmations: 1,
         callbackGasLimit: "500000",
-        interval: "30",
+        interval: "3000",
     },
     5: {
         name: "goerli",
@@ -28,7 +28,7 @@ const networkConfig: ExtraConfig = {
         verifyContract: true,
         blockConfirmations: 6,
         callbackGasLimit: "500000",
-        interval: "30",
+        interval: "3000",
     },
     80001: {
         name: "mumbai",
@@ -39,7 +39,7 @@ const networkConfig: ExtraConfig = {
         verifyContract: true,
         blockConfirmations: 6,
         callbackGasLimit: "500000",
-        interval: "30",
+        interval: "120",
     },
 };
 

@@ -10,7 +10,7 @@ import "./ERC20Mock.sol";
 contract FarmingYield is Ownable {
     using SafeMath for uint256;
     // token addresses
-    IERC20 public stakingToken;
+    ERC20Mock public stakingToken;
     ERC20Mock public rewardToken1;
     // fee percent
     uint256 public depositFee;
@@ -22,7 +22,6 @@ contract FarmingYield is Ownable {
     uint256 public reward1PerBlock;
     // depositFee will be send to treasury address.
     address public treasury;
-
     uint256 public lastRewardBlock;
     uint256 public accReward1PerShare;
 
@@ -39,11 +38,7 @@ contract FarmingYield is Ownable {
         FundInfo[] fundInfo;
     }
 
-    struct StakerInfo {
-        uint256 amount;
-        address staker;
-    }
-    StakerInfo[] public stakers;
+    address[] public stakers;
     mapping(address => UserInfo) public userInfo;
     mapping(address => uint256) public lockIndex;
     event Deposit(address indexed user, uint256 amount);
@@ -51,23 +46,25 @@ contract FarmingYield is Ownable {
     event Claim(address indexed user, uint256 amount1);
 
     constructor(
-        IERC20 _stakingToken,
-        ERC20Mock _rewardToken1,
         uint256 _depositFee,
-        address _treasury,
         uint256 _reward1PerBlock,
         uint256 _lockPeriod
     ) {
-        stakingToken = _stakingToken;
-        rewardToken1 = _rewardToken1;
         depositFee = _depositFee;
-        treasury = _treasury;
         reward1PerBlock = _reward1PerBlock;
         lastRewardBlock = block.number;
         accReward1PerShare = 0;
         lockPeriod = _lockPeriod;
     }
-
+    function setTreasury(address _treasury) public onlyOwner{
+        treasury = _treasury;
+    }
+    function setStakingToken(address _token) public onlyOwner{
+        stakingToken=ERC20Mock(_token);
+    }
+    function setRewardToken(address _token) public onlyOwner{
+        rewardToken1=ERC20Mock(_token);
+    }
     function update() public {
         uint256 stakingSupply = stakingToken.balanceOf(address(this));
 
@@ -107,8 +104,9 @@ contract FarmingYield is Ownable {
 
         user.amount = user.amount + netAmount;
         user.reward1Debt = (user.amount * accReward1PerShare) / 1e12;
+        if(user.fundInfo.length == 0 && user.amount > 0) stakers.push(msg.sender);
         user.fundInfo.push(FundInfo(netAmount, block.timestamp));
-        if(user.fundInfo.length > 0 && user.amount > 0) stakers.push(StakerInfo(amount, msg.sender));
+        
         emit Deposit(msg.sender, netAmount);
     }
 
@@ -170,8 +168,12 @@ contract FarmingYield is Ownable {
         UserInfo storage user = userInfo[_user];
         return ((user.amount * accReward1PerShare) / 1e12 - user.reward1Debt);
     }
-    function getStakers() public returns (StakerInfo[] memory)
+    function getStakers() public returns (address[] memory)
     {
         return stakers;
+    }
+    function getAmount(address _user) public returns (uint256)
+    {
+        return userInfo[_user].amount;
     }
 }
