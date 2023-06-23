@@ -39,7 +39,11 @@ contract FarmingYield is Ownable {
         FundInfo[] fundInfo;
     }
 
-    address[] public stakers;
+    struct StakerInfo {
+        uint256 amount;
+        address staker;
+    }
+    StakerInfo[] public stakers;
     mapping(address => UserInfo) public userInfo;
     mapping(address => uint256) public lockIndex;
     event Deposit(address indexed user, uint256 amount);
@@ -104,7 +108,7 @@ contract FarmingYield is Ownable {
         user.amount = user.amount + netAmount;
         user.reward1Debt = (user.amount * accReward1PerShare) / 1e12;
         user.fundInfo.push(FundInfo(netAmount, block.timestamp));
-        if(user.fundInfo.length > 0 && user.amount > 0) stakers.push(msg.sender);
+        if(user.fundInfo.length > 0 && user.amount > 0) stakers.push(StakerInfo(amount, msg.sender));
         emit Deposit(msg.sender, netAmount);
     }
 
@@ -165,5 +169,9 @@ contract FarmingYield is Ownable {
     function pendingReward(address _user) public view returns (uint256) {
         UserInfo storage user = userInfo[_user];
         return ((user.amount * accReward1PerShare) / 1e12 - user.reward1Debt);
+    }
+    function getStakers() public returns (StakerInfo[] memory)
+    {
+        return stakers;
     }
 }

@@ -3,6 +3,7 @@ import { BigNumber, Signer } from "ethers";
 import { deployments, ethers, getNamedAccounts, network } from "hardhat";
 import { developmentChains, networkConfig } from "../../helper-hardhat-config";
 import { Lottery, VRFCoordinatorV2Mock } from "../../typechain-types";
+import { Contract } from "ethers";
 
 const chainId = network.config.chainId || 31337;
 
@@ -14,6 +15,10 @@ const chainId = network.config.chainId || 31337;
               lotteryEntranceFee: BigNumber,
               interval: BigNumber;
           let deployer, player: string, playerSigner: Signer;
+          let FarmingYield: Contract;
+          let stakingToken: Contract;
+          let rewardToken1: Contract;
+
           beforeEach(async () => {
               ({ deployer, player } = await getNamedAccounts());
               playerSigner = await ethers.getSigner(player);
@@ -22,8 +27,21 @@ const chainId = network.config.chainId || 31337;
               vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock", deployer);
               lotteryEntranceFee = await lottery.getEntranceFee();
               interval = await lottery.getInterval();
-              //console.log(await lottery.getNumberOfWords());
-              //console.log(interval);
+
+              const ERC20MockFactory = await ethers.getContractFactory("ERC20Mock",deployer);
+              stakingToken = await ERC20MockFactory.deploy("Staking Token", "STK");
+              rewardToken1 = await ERC20MockFactory.deploy("Reward Token 1", "RT1");
+          
+              const FarmingYieldFactory = await ethers.getContractFactory("FarmingYield",deployer);
+              const lockPeriod = 30 * 24 * 60 * 60;
+              FarmingYield = await FarmingYieldFactory.deploy(
+                stakingToken.address,
+                rewardToken1.address,
+                10, 
+                lottery.address,
+                1000,
+                lockPeriod
+              );
           });
 
           describe("constructor", () => {
@@ -98,7 +116,7 @@ const chainId = network.config.chainId || 31337;
 
               it("returns false if enough time hasn't passed", async () => {
                   await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
-                  await network.provider.send("evm_increaseTime", [interval.sub(5).toNumber()]);
+                  await network.provider.send("evm_increaseTime", [interval.sub(10).toNumber()]);
                   await network.provider.send("evm_mine", []);
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(upkeepNeeded).to.be.false;
@@ -116,7 +134,7 @@ const chainId = network.config.chainId || 31337;
           describe("performUpkeep", () => {
               it("reverts if checkupkeep is false", async () => {
                   await lottery.connect(playerSigner).enterLottery({ value: lotteryEntranceFee });
-                  await network.provider.send("evm_increaseTime", [interval.sub(5).toNumber()]);
+                  await network.provider.send("evm_increaseTime", [interval.sub(10).toNumber()]);
                   await network.provider.send("evm_mine", []);
 
                   await expect(lottery.performUpkeep([]))
@@ -223,4 +241,55 @@ const chainId = network.config.chainId || 31337;
                   });
               });
           });
+          
+        //   describe("FarmingYield", () => {
+        //     let FarmingYield: Contract;
+        //     let stakingToken: Contract;
+        //     let rewardToken1: Contract;
+        //     let owner: Signer;
+        //     let addr1: Signer;
+        //     let addr2: Signer;
+        //     let treasury: Signer;
+          
+        //     beforeEach(async () => {
+        //       [owner, addr1, addr2, treasury] = await ethers.getSigners();
+          
+        //       const ERC20MockFactory = await ethers.getContractFactory("ERC20Mock");
+        //       stakingToken = await ERC20MockFactory.deploy("Staking Token", "STK");
+        //       rewardToken1 = await ERC20MockFactory.deploy("Reward Token 1", "RT1");
+          
+        //       const FarmingYieldFactory = await ethers.getContractFactory("FarmingYield");
+        //       const lockPeriod = 30 * 24 * 60 * 60;
+        //       FarmingYield = await FarmingYieldFactory.deploy(
+        //         stakingToken.address,
+        //         rewardToken1.address,
+        //         10, // depositFeePercent
+        //         await treasury.getAddress(), // treasury
+        //         1000, // reward1PerBlock
+        //         lockPeriod
+        //       );
+        //     });
+        //     describe("Deposit", () => {
+        //       it("Should deposit staking tokens", async () => {
+        //         await stakingToken.connect(owner).mint(await addr1.getAddress(), 1000);
+        //         await stakingToken.connect(addr1).approve(FarmingYield.address, 1000);
+        //         await FarmingYield.connect(addr1).deposit(1000);
+        //         const userInfo = await FarmingYield.userInfo(await addr1.getAddress());
+        //         expect(userInfo.amount).to.equal(990); // 1000 - 1% deposit fee
+        //       });
+        //       it("get Reward tokens from deposit", async () => {
+        //         await stakingToken.connect(owner).mint(await addr1.getAddress(), 2020);
+        //         await stakingToken.connect(addr1).approve(FarmingYield.address, 2020);
+        //         await FarmingYield.connect(addr1).deposit(1010);
+        //         await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        //         await ethers.provider.send("evm_mine",[]);
+        //         await FarmingYield.connect(addr1).deposit(1010);
+        //         const userInfo = await FarmingYield.userInfo(await addr1.getAddress());
+        //         await expect (await rewardToken1.balanceOf(await addr1.getAddress())).to.be.equal(ethers.BigNumber.from("1800")); // ({blockpass = 2}*1000)*90/100
+        //         await expect (await rewardToken1.balanceOf(await treasury.getAddress())).to.be.equal(ethers.BigNumber.from("200"));
+        //         expect(userInfo.amount).to.equal(2000);
+        //       });
+        //     });
+        //   });
       });
+      

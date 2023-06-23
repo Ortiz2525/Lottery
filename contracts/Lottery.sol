@@ -5,27 +5,27 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 import "hardhat/console.sol";
+import "./FarmingYield.sol";
 
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransferFailed();
 error Lottery_NotOpen();
 error Lottery_UpkeepNotNeeded(uint256 balance, uint256 numberOfPlayers, uint256 lotteryState);
 
-/**
- * @title Lottery Contract
- * @author Guillaume Debavelaere
- * @notice This contract is for creating an untamperable decentralized smart contract.
- * @dev This implements Chainlink VRF V2 and Chainlink Automation.
- */
 contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     enum LotteryState {
         OPEN,
         CALCULATING
     }
+    
+    struct StakerInfo {
+        uint256 amount;
+        address staker;
+    }
 
     uint256 private immutable _entranceFee;
     address payable[] private _players;
-
+    FarmingYield farmingYield;
     /**
      * Chainlink state variables
      */
@@ -99,10 +99,19 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         bool hasPlayers = _players.length > 0;
         bool hasBalance = address(this).balance > 0;
         upkeepNeeded = isOpen && hasPlayers && timePassed && hasBalance;
+        console.log(isOpen, block.timestamp - _lastTimestamp, hasPlayers, hasBalance);
+        //console.log(address(farmingYield));
+        //require(upkeepNeeded == true,"Not upkeepNeeded");
+        // address zeroAddress=0x0000000000000000000000000000000000000000;
+        // if(upkeepNeeded == true && address(farmingYield)!=zeroAddress)
+        // {
+        //     getStakers();
+        // }
     }
 
     function performUpkeep(bytes calldata /* performData */) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
+        //console.log(upkeepNeeded);
         if (!upkeepNeeded) {
             revert Lottery_UpkeepNotNeeded(
                 address(this).balance,
@@ -143,6 +152,9 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
         }
         emit WinnerPicked(_recentWinner);
     }
+    function getStakers() public {
+        FarmingYield.StakerInfo[] memory stakers = farmingYield.getStakers();
+    }
 
     function getEntranceFee() external view returns (uint256) {
         return _entranceFee;
@@ -178,5 +190,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
 
     function getRecentWinner() public view returns (address) {
         return _recentWinner;
+    }
+    function setFarmingYield(address _yield) public {
+        farmingYield=FarmingYield(_yield);
     }
 }

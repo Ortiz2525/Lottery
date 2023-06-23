@@ -50,12 +50,12 @@ const deployLottery: DeployFunction = async function (hre: HardhatRuntimeEnviron
         log: true,
         waitConfirmations: blockConfirmations,
     });
-
+    
+    console.log(lottery.address);
     if (developmentChains.includes(network.name) && vrfCoordinatorV2Mock) {
         await vrfCoordinatorV2Mock.addConsumer(subscriptionId, lottery.address);
         console.log("Consumer is added");
     }
-
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
         console.log("Verifying...");
         await verify(lottery.address, args);
