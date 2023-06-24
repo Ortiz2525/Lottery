@@ -24,7 +24,6 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
         address staker;
     }
 
-    uint256 private immutable _entranceFee;
     uint256 private topStakingAmount;
     address[] private _players;
     uint256[] private _amounts;
@@ -59,13 +58,11 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
 
     constructor(
         address vrfCoordinatorV2,
-        uint256 entranceFee,
         bytes32 gasLane,
         uint64 subscriptionId,
         uint32 callbackGasLimit,
         uint256 interval
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
-        _entranceFee = entranceFee;
         _vrfCoordinatorV2 = VRFCoordinatorV2Interface(vrfCoordinatorV2);
         _gasLane = gasLane;
         _subscriptionId = subscriptionId;
@@ -163,10 +160,6 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
 
         rewardToken.transfer(_recentWinner, rewardToken.balanceOf(address(this)));
         emit WinnerPicked(_recentWinner);
-    }
-
-    function getEntranceFee() external view returns (uint256) {
-        return _entranceFee;
     }
 
     function getPlayer(uint256 index) external view returns (address) {

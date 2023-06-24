@@ -31,14 +31,12 @@ const deployLottery: DeployFunction = async function (hre: HardhatRuntimeEnviron
     }
 
     const blockConfirmations = networkConfig[chainId].blockConfirmations;
-    const entranceFee = networkConfig[chainId].entranceFee;
     const gasLane = networkConfig[chainId].gasLane;
     const callbackGasLimit = networkConfig[chainId].callbackGasLimit;
     const interval = networkConfig[chainId].interval;
 
     const args = [
         vrfCoordinatorV2Address,
-        entranceFee,
         gasLane,
         subscriptionId,
         callbackGasLimit,

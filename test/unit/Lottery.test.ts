@@ -25,7 +25,6 @@ const chainId = network.config.chainId || 31337;
               await deployments.fixture(["all"]);
               lottery = await ethers.getContract("Lottery", deployer);
               vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock", deployer);
-              lotteryEntranceFee = await lottery.getEntranceFee();
               interval = await lottery.getInterval();
 
               const ERC20MockFactory = await ethers.getContractFactory("ERC20Mock",deployer);
@@ -220,7 +219,7 @@ const chainId = network.config.chainId || 31337;
                       const startingBalance =await rewardToken1.balanceOf(accounts[6].address);
                       const reward = await rewardToken1.balanceOf(lottery.address);
                     //   console.log(reward);
-                       console.log(startingBalance);
+                    //   console.log(startingBalance);
                       const events = txReceipt.events || Array();
                       await vrfCoordinatorV2Mock.fulfillRandomWords(
                           events[1].args.requestId,
