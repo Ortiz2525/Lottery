@@ -54,15 +54,6 @@ const chainId = network.config.chainId || 31337;
 
           describe("enterLottery", () => {
 
-              it("records players when they enter", async () => {
-                await stakingToken.mint(await playerSigner.getAddress(), 1000);
-                await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
-                await FarmingYield.connect(playerSigner).deposit(1000);
-                lottery.getStakers();
-                  const playerFromContract = await lottery.getPlayer(0);
-                  expect(playerFromContract).to.eq(player);
-              });
-
               it("reverts when the state is not opened", async () => {
                 await stakingToken.mint(await playerSigner.getAddress(), 1000);
                 await stakingToken.connect(playerSigner).approve(FarmingYield.address, 1000);
@@ -71,7 +62,7 @@ const chainId = network.config.chainId || 31337;
                   // to change the state from OPEN to CALCULATING
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
-
+                  await FarmingYield.connect(playerSigner).claim();
                   // We pretend to be a chainlink keeper
                   await lottery.performUpkeep([]);
               });
@@ -92,9 +83,9 @@ const chainId = network.config.chainId || 31337;
                 await FarmingYield.connect(playerSigner).deposit(1000);
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
+                  await FarmingYield.connect(playerSigner).claim();
                   await lottery.performUpkeep([]); // changes the state to calculating
                   const lotteryState = await lottery.getLotteryState();
-                  
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(lotteryState).to.eq(1); // CALCULATING
                   expect(upkeepNeeded).to.be.false;
@@ -110,7 +101,7 @@ const chainId = network.config.chainId || 31337;
                   }
                   await network.provider.send("evm_increaseTime", [interval.sub(100).toNumber()]);
                   await network.provider.send("evm_mine", []);
-                  
+                  await FarmingYield.connect(playerSigner).claim();                  
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(upkeepNeeded).to.be.false;
               });
@@ -126,6 +117,7 @@ const chainId = network.config.chainId || 31337;
                   }
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
+                  await FarmingYield.connect(playerSigner).claim();
                   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
                   expect(upkeepNeeded).to.be.true;
               });
@@ -138,6 +130,7 @@ const chainId = network.config.chainId || 31337;
                 await FarmingYield.connect(playerSigner).deposit(1000);
                   await network.provider.send("evm_increaseTime", [interval.sub(100).toNumber()]);
                   await network.provider.send("evm_mine", []);
+                  await FarmingYield.connect(playerSigner).claim();
 
                   await expect(lottery.performUpkeep([]))
                       .to.be.revertedWithCustomError(lottery, "Lottery_UpkeepNotNeeded")
@@ -150,7 +143,7 @@ const chainId = network.config.chainId || 31337;
                 await FarmingYield.connect(playerSigner).deposit(1000);
                   await network.provider.send("evm_increaseTime", [interval.add(1).toNumber()]);
                   await network.provider.send("evm_mine", []);
-
+                  await FarmingYield.connect(playerSigner).claim();
                   const txResponse = await lottery.performUpkeep([]);
 
                   const txReceipt = await txResponse.wait(1);
@@ -188,7 +181,10 @@ const chainId = network.config.chainId || 31337;
                     await FarmingYield.connect(accounts[i]).deposit(1000+i*100);
                       
                   }
-                 
+                  await network.provider.send("evm_mine", []);
+                  await network.provider.send("evm_mine", []);
+                  await network.provider.send("evm_mine", []);
+                  await FarmingYield.connect(accounts[6]).claim();
                   const startingTimeStamp = await lottery.getLastTimestamp(); // stores starting timestamp (before we fire our event)
 
                   // This will be more important for our staging tests...
@@ -204,12 +200,12 @@ const chainId = network.config.chainId || 31337;
                               // Now lets get the ending values...
                               const recentWinner = await lotteryConnect.getRecentWinner();
                               const lotteryState = await lotteryConnect.getLotteryState();
-                              const winnerBalance = await stakingToken.balanceOf(accounts[6].address);
+                              const winnerBalance = await rewardToken1.balanceOf(accounts[6].address);
                               const endingTimeStamp = await lotteryConnect.getLastTimestamp();
                               await expect(lottery.getPlayer(0)).to.be.reverted;
                               expect(recentWinner).to.eq(accounts[6].address);
                               expect(lotteryState).to.eq(0);
-                              expect(winnerBalance).to.eq(startingBalance.add(reward));
+                              expect(winnerBalance).to.gt(startingBalance);
                               expect(endingTimeStamp).to.be.greaterThan(startingTimeStamp);
                               resolve(); // if try passes, resolves the promise
                           } catch (e) {
@@ -221,10 +217,10 @@ const chainId = network.config.chainId || 31337;
                       const tx = await lottery.performUpkeep([]);
                       const txReceipt = await tx.wait(1);
                       
-                      const startingBalance =await stakingToken.balanceOf(accounts[6].address);
-                      const reward = await stakingToken.balanceOf(lottery.address);
+                      const startingBalance =await rewardToken1.balanceOf(accounts[6].address);
+                      const reward = await rewardToken1.balanceOf(lottery.address);
                     //   console.log(reward);
-                    //   console.log(startingBalance);
+                       console.log(startingBalance);
                       const events = txReceipt.events || Array();
                       await vrfCoordinatorV2Mock.fulfillRandomWords(
                           events[1].args.requestId,

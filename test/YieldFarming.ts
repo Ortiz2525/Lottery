@@ -68,7 +68,7 @@ describe("FarmingYield", () => {
       // Deposit staking tokens
       await FarmingYield.connect(addr1).deposit(1010);
       
-      await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+      await ethers.provider.send("evm_increaseTime", [10]);
       await ethers.provider.send("evm_mine",[]);
       //2 blocks are minted
 

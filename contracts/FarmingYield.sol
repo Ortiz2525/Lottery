@@ -56,6 +56,9 @@ contract FarmingYield is Ownable {
         accReward1PerShare = 0;
         lockPeriod = _lockPeriod;
     }
+    function setRewardPerBlock(uint256 _reward1PerBlock) public onlyOwner{
+        reward1PerBlock = _reward1PerBlock;
+    }
     function setTreasury(address _treasury) public onlyOwner{
         treasury = _treasury;
     }

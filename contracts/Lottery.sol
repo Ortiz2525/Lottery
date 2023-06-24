@@ -28,7 +28,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
     uint256 private topStakingAmount;
     address[] private _players;
     uint256[] private _amounts;
-    FarmingYield farmingYield;
+    FarmingYield public farmingYield;
     IERC20 public stakingToken;
     ERC20Mock public rewardToken;
     /**
@@ -108,7 +108,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
             }
         }
         bool hasPlayers = _players.length > 0;
-        bool hasBalance = stakingToken.balanceOf(address(this)) > 0;
+        bool hasBalance = rewardToken.balanceOf(address(this)) > 0;
         upkeepNeeded = isOpen && hasPlayers && timePassed && hasBalance;
     }
 
@@ -151,7 +151,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
                 rNumber -= _amounts[i];
             }
         }
-        console.log(indexOfWinner);
+     //   console.log(indexOfWinner);
         _recentWinner = _players[indexOfWinner];
 
         // Reset state and players array
@@ -161,20 +161,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
         topStakingAmount = 0;
         _lastTimestamp = block.timestamp;
 
-        stakingToken.transfer(_recentWinner, stakingToken.balanceOf(address(this)));
         rewardToken.transfer(_recentWinner, rewardToken.balanceOf(address(this)));
         emit WinnerPicked(_recentWinner);
-    }
-
-    function getStakers() public {
-        address[] memory stakers = farmingYield.getStakers();
-        _players = new address[](0);
-        topStakingAmount = 0;
-        for (uint i = 0; i < stakers.length; i++) {
-            _players.push(stakers[i]);
-            _amounts.push(farmingYield.getAmount(stakers[i]));
-            topStakingAmount += farmingYield.getAmount(stakers[i]);
-        }
     }
 
     function getEntranceFee() external view returns (uint256) {
