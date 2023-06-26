@@ -84,6 +84,35 @@ describe("FarmingYield", () => {
       await expect (await rewardToken1.balanceOf(await treasury.getAddress())).to.be.equal(ethers.BigNumber.from("200"));
       expect(userInfo.amount).to.equal(2000); //  2020 - fee
     });
+    it("multi deposit", async () => {
+      const accounts = await ethers.getSigners();
+      for(let i= 0; i<15;i++)
+      {
+        await stakingToken.mint(await accounts[i].getAddress(), 1000);
+        await stakingToken.connect(accounts[i]).approve(FarmingYield.address, 1000);
+      }
+      await FarmingYield.connect(accounts[0]).deposit(200);
+      await FarmingYield.connect(accounts[1]).deposit(300);
+      await FarmingYield.connect(accounts[2]).deposit(500);
+      await FarmingYield.connect(accounts[3]).deposit(100);
+      await FarmingYield.connect(accounts[4]).deposit(200);
+      await FarmingYield.connect(accounts[5]).deposit(150);
+      await FarmingYield.connect(accounts[6]).deposit(750);
+      await FarmingYield.connect(accounts[7]).deposit(840);
+      await FarmingYield.connect(accounts[8]).deposit(640);
+      await FarmingYield.connect(accounts[9]).deposit(620);
+      await FarmingYield.connect(accounts[10]).deposit(630);
+      await FarmingYield.connect(accounts[11]).deposit(650);
+      await FarmingYield.connect(accounts[12]).deposit(110);
+      await FarmingYield.getTopStakers();
+      await ethers.provider.send("evm_increaseTime", [31 * 24 * 60 * 60]);
+      await ethers.provider.send("evm_mine",[]);
+      console.log("");     
+      await FarmingYield.connect(accounts[7]).withdraw(500);
+      await FarmingYield.getTopStakers();
+      await FarmingYield.connect(accounts[6]).withdraw(730);
+      await FarmingYield.getTopStakers();
+    });
   });
 
   describe("Withdraw", () => {

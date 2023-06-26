@@ -5,8 +5,9 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 import "hardhat/console.sol";
-import "./FarmingYield.sol";
+import "./IFarmingYield.sol";
 import "./ERC20Mock.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 error Lottery__NotEnoughETHEntered();
 error Lottery__TransferFailed();
@@ -27,9 +28,9 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
     uint256 private topStakingAmount;
     address[] private _players;
     uint256[] private _amounts;
-    FarmingYield public farmingYield;
+    IFarmingYield public farmingYield;
     IERC20 public stakingToken;
-    ERC20Mock public rewardToken;
+    IERC20 public rewardToken;
     /**
      * Chainlink state variables
      */
@@ -78,23 +79,8 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
         bool timePassed = (block.timestamp - _lastTimestamp) > _interval;
         address zeroAddress = 0x0000000000000000000000000000000000000000;
         if (address(farmingYield) != zeroAddress) {
-            address[] memory stakers = farmingYield.getStakers();
-            uint256 k = stakers.length < 10 ? stakers.length : 10;
-            uint256 n = stakers.length;
-            for (uint256 i = 0; i < k; i++) {
-                uint256 maxIndex = i;
-                for (uint256 j = i + 1; j < n; j++) {
-                    if (
-                        farmingYield.getAmount(stakers[j]) >
-                        farmingYield.getAmount(stakers[maxIndex])
-                    ) {
-                        maxIndex = j;
-                    }
-                }
-                address temp = stakers[i];
-                stakers[i] = stakers[maxIndex];
-                stakers[maxIndex] = temp;
-            }
+            address[] memory stakers = farmingYield.getTopStakers();
+            uint256 k = stakers.length;
             _players = new address[](0);
             _amounts = new uint256[](0);
             topStakingAmount = 0;
@@ -199,7 +185,7 @@ contract Lottery is VRFConsumerBaseV2, AutomationCompatibleInterface, Ownable {
     }
 
     function setFarmingYield(address _yield) public onlyOwner {
-        farmingYield = FarmingYield(_yield);
+        farmingYield = IFarmingYield(_yield);
     }
 
     function setRewardToken(address _yield) public onlyOwner {

@@ -1,14 +1,19 @@
 StakingToken
-https://mumbai.polygonscan.com/address/0xC7F04A54441143d70baecdbB575ffaf4838554F4#code
+https://mumbai.polygonscan.com/address/0x106aabcb0199d9da56a8b5498205a5879e4d89ee#code
 RewardToken
-https://mumbai.polygonscan.com/address/0x429a7068F327e7cAb693FcFC62B430b086024079#code
+https://mumbai.polygonscan.com/address/0x693e9f6AB70ff58294c805db97192034942cEC88#code
 FarmingYield
-https://mumbai.polygonscan.com/address/0x58876b772538b9b5a5E456Cb37207D1962cFC514#code
+https://mumbai.polygonscan.com/address/0xfd2c12F677C88E34e8575687DDB9ADC9633170a6#code
 Lottery
-https://mumbai.polygonscan.com/address/0x6755996Fee576636F2Ad1e98dc3b8d1D2f3305aA#code
+https://mumbai.polygonscan.com/address/0x2911291DBc60df05E4ef98e88B0811892256D4A9#code
 
-you can see transactions in here
-https://mumbai.polygonscan.com/token/0x429a7068f327e7cab693fcfc62b430b086024079?a=0x6755996fee576636f2ad1e98dc3b8d1d2f3305aa
+You can see transactions in here
+https://mumbai.polygonscan.com/token/0x693e9f6AB70ff58294c805db97192034942cEC88
+
+My VRF link
+https://vrf.chain.link/mumbai/5300
+My Automation link
+https://automation.chain.link/mumbai/38403173581540720367818043961598316452249465466184352044850469196811555025039
 
 0x2b6e4066f435C758708C406f8E9c18E26DF649D4
 
@@ -19,3 +24,6 @@ https://mumbai.polygonscan.com/token/0x429a7068f327e7cab693fcfc62b430b086024079?
 
 500000000000000000000
 100000000000000000000
+
+
+
